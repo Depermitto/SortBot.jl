@@ -1,0 +1,6 @@
+# IDES
+.vscode/
+.idea/
+
+# Token
+token.txt

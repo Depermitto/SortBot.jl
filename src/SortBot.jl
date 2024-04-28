@@ -4,7 +4,7 @@ import HTTP, JSON3, Dates
 
 export URL, TOKEN, get_updates, send_message, runbot
 
-const TOKEN = "7130725976:AAHUFdgFFfXuwkertT9l7Yto4YG5ikp0WYg"
+const TOKEN = readchomp(match(r"token.txt", readdir()))
 const URL = "https://api.telegram.org/bot$TOKEN"
 
 const global offset = Ref{Int}()
@@ -34,11 +34,11 @@ function get_updates(url::String; timeout::Int, all::Bool)::Vector
     updates
 end
 
-function send_message(url::String, msg, text::String, reply::Bool=false)
+function send_message(url::String, msg, text::String) # reply::Bool=false)
     query_parameters = Dict("text" => text, "chat_id" => msg.chat.id)
-    if reply
-        query_parameters["reply_parameters"] = Dict("message_id" => msg.message_id)
-    end
+    # if reply
+    #     query_parameters["reply_parameters"] = Dict("message_id" => msg.message_id)
+    # end
     HTTP.request(:POST, "$url/sendMessage", query=query_parameters)
 end
 

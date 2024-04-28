@@ -3,7 +3,7 @@ using .SortBot
 
 
 runbot(URL, timeout=200) do msg
-    nums = split(get(msg, "text", ""), n -> !(isnumeric(n) || n ∈ ('-', '.'))) .|>
+    nums = split(get(msg, :text, ""), n -> !(isnumeric(n) || n ∈ ('-', '.'))) .|>
            (n -> tryparse(Float64, n)) |>
            filter(!isnothing) |>
            sort! |>
