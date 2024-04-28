@@ -1,8 +1,8 @@
 module SortBot
 
-import HTTP, JSON, Dates
+import HTTP, JSON3, Dates
 
-export URL, TOKEN, get_updates, send_message, runbot, text, chat_id
+export URL, TOKEN, get_updates, send_message, runbot
 
 const TOKEN = "7130725976:AAHUFdgFFfXuwkertT9l7Yto4YG5ikp0WYg"
 const URL = "https://api.telegram.org/bot$TOKEN"
@@ -16,8 +16,7 @@ timeout occurs, the returned list is empty.
 The parameter `all` set to **false** tells the API to flush the history;
 Take care when using this parameter because there is no way to get the
 most recent updates without flushing the old ones and they **cannot be recovered**."
-function get_updates(url::String; timeout::Int, all::Bool)::Vector{Dict}
-
+function get_updates(url::String; timeout::Int, all::Bool)::Vector
     query_parameters = Dict("timeout" => timeout)
 
     if !all && isassigned(offset)
@@ -25,33 +24,35 @@ function get_updates(url::String; timeout::Int, all::Bool)::Vector{Dict}
     end
 
     response = HTTP.get("$url/getUpdates", query=query_parameters)
-    body = JSON.parse(String(response.body))
-    updates = body["result"]
+    updates = JSON3.read(response.body).result
 
     if !isempty(updates)
-        max_update_id = maximum(u -> u["update_id"], updates)
+        max_update_id = maximum(u -> u.update_id, updates)
         offset[] = max_update_id + 1
     end
 
     updates
 end
 
-function send_message(url::String, message::String, chat_id::Integer)
-    query_parameters = Dict("text" => message, "chat_id" => chat_id)
+function send_message(url::String, msg, text::String, reply::Bool=false)
+    query_parameters = Dict("text" => text, "chat_id" => msg.chat.id)
+    if reply
+        query_parameters["reply_parameters"] = Dict("message_id" => msg.message_id)
+    end
     HTTP.request(:POST, "$url/sendMessage", query=query_parameters)
 end
 
-chat_id(update::Dict)::Integer = update["message"]["chat"]["id"]
-text(update::Dict)::String = get(update["message"], "text", "")
-
 function runbot(f::Function, url::String; timeout::Int=60, log::Bool=true)
-    last_messaged = []
+    all_messaged = Set()
     served = @elapsed while true
         updates = get_updates(url, all=false, timeout=timeout)
         isempty(updates) && break
 
-        last_messaged = unique!(chat_id.(updates))
-        f.(updates)
+        tasks = map(updates) do u
+            push!(all_messaged, u.message.chat.id)
+            Threads.@spawn f(u.message)
+        end
+        wait.(tasks)
     end
 
     log || return nothing
@@ -60,7 +61,7 @@ function runbot(f::Function, url::String; timeout::Int=60, log::Bool=true)
     send_message.(
         url,
         "Timed out ($(timeout)s of waiting) at $now after $(round(served, digits=2))s of serving",
-        last_messaged,
+        all_messaged,
     )
 end
 
